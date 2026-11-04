@@ -120,6 +120,7 @@ let cur=0, done=false, review=false, fromReview=false;
 const ans=Q.map(q=>q[1].map(()=>({py:"",tone:0})));
 // 家长重置：网址末尾加 #reset 再刷新，清掉本机上的答题记录和已交卷状态
 try{if(location.hash==="#reset"){localStorage.removeItem("pinyin-quiz-v3");history.replaceState(null,"",location.pathname)}}catch(e){}
+window.addEventListener("hashchange",()=>{if(location.hash==="#reset")location.reload()});
 try{const s=JSON.parse(localStorage.getItem("pinyin-quiz-v3")||"null");if(s&&s.ans&&s.ans.length===Q.length){s.ans.forEach((a,i)=>{ans[i]=a});cur=s.cur||0;done=!!s.done}}catch(e){}
 function save(){try{localStorage.setItem("pinyin-quiz-v3",JSON.stringify({ans,cur,done}))}catch(e){}}
 // 规范化输入：小写、ü→v、带调字母换成无调并识别声调
