@@ -118,8 +118,10 @@ const MARK={1:"ˉ",2:"ˊ",3:"ˇ",4:"ˋ",5:"·"}, TXT={1:"一声",2:"二声",3:"�
 const app=document.getElementById("app");
 let cur=0, done=false, review=false, fromReview=false;
 const ans=Q.map(q=>q[1].map(()=>({py:"",tone:0})));
-try{const s=JSON.parse(localStorage.getItem("pinyin-quiz-v3")||"null");if(s&&s.ans&&s.ans.length===Q.length){s.ans.forEach((a,i)=>{ans[i]=a});cur=s.cur||0}}catch(e){}
-function save(){try{localStorage.setItem("pinyin-quiz-v3",JSON.stringify({ans,cur}))}catch(e){}}
+// 家长重置：网址末尾加 #reset 再刷新，清掉本机上的答题记录和已交卷状态
+try{if(location.hash==="#reset"){localStorage.removeItem("pinyin-quiz-v3");history.replaceState(null,"",location.pathname)}}catch(e){}
+try{const s=JSON.parse(localStorage.getItem("pinyin-quiz-v3")||"null");if(s&&s.ans&&s.ans.length===Q.length){s.ans.forEach((a,i)=>{ans[i]=a});cur=s.cur||0;done=!!s.done}}catch(e){}
+function save(){try{localStorage.setItem("pinyin-quiz-v3",JSON.stringify({ans,cur,done}))}catch(e){}}
 // 规范化输入：小写、ü→v、带调字母换成无调并识别声调
 function norm(s){
   s=(s||"").toLowerCase().replace(/ü/g,"v").replace(/\s+/g,"");
@@ -201,7 +203,7 @@ function updateMeta(){
   app.querySelector(".meta span:last-child").textContent=`已答 ${cnt} 题 · 本题 2 分`;
   app.querySelectorAll(".dots button").forEach((b,i)=>b.classList.toggle("done",answered(i)));
 }
-function submit(){done=true;review=false;window.scrollTo(0,0);render()}
+function submit(){done=true;review=false;save();window.scrollTo(0,0);render()}
 function renderResult(){
   let total=0;const res=Q.map((_,i)=>{const g=grade(i);total+=g.pts;return g});
   const full=res.filter(g=>g.pts>1.999).length;
@@ -219,11 +221,7 @@ function renderResult(){
     rev.append(el(`<div class="item"><span class="w">${w}</span><span class="en">${en}</span><span class="pts">${(Math.round(g.pts*100)/100)} / 2</span><div class="det">${det}</div></div>`));
   });
   app.append(rev);
-  const again=el(`<button class="btn primary">重新答题</button>`);
-  again.onclick=()=>{ans.forEach(a=>a.forEach(x=>{x.py="";x.tone=0}));cur=0;done=false;save();window.scrollTo(0,0);render()};
-  const back=el(`<button class="btn">返回修改答案</button>`);
-  back.onclick=()=>{done=false;cur=0;render()};
-  const nav=el(`<div class="nav"></div>`);nav.append(back,again);app.append(nav);
+  app.append(el(`<p class="sub" style="text-align:center">已交卷，答案不能再修改。</p>`));
 }
 render();
 </script>
