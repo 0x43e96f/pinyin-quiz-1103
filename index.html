@@ -52,6 +52,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .item .pts{margin-left:auto;font:500 .875rem var(--font-mono)}
 .item .det{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;font:.8125rem var(--font-mono)}
 .chip{padding:2px 8px;border-radius:6px}
+button.rv{font:inherit;color:var(--fg);text-align:left;width:100%;cursor:pointer;align-items:center;flex-wrap:nowrap}
+.rv .rvtxt{font:500 .9375rem var(--font-mono);flex:1;min-width:0;overflow-wrap:anywhere}
+.rv .en{min-width:1.6em;font-family:var(--font-mono)}
 .chip.ok{background:var(--good-bg);color:var(--good)}
 .chip.no{background:var(--bad-bg);color:var(--bad)}
 .item .en{color:var(--muted);font-size:.8125rem}
@@ -113,7 +116,7 @@ const Q=[
 ];
 const MARK={1:"ˉ",2:"ˊ",3:"ˇ",4:"ˋ",5:"·"}, TXT={1:"一声",2:"二声",3:"三声",4:"四声",5:"轻声"};
 const app=document.getElementById("app");
-let cur=0, done=false;
+let cur=0, done=false, review=false, fromReview=false;
 const ans=Q.map(q=>q[1].map(()=>({py:"",tone:0})));
 try{const s=JSON.parse(localStorage.getItem("pinyin-quiz-v3")||"null");if(s&&s.ans&&s.ans.length===Q.length){s.ans.forEach((a,i)=>{ans[i]=a});cur=s.cur||0}}catch(e){}
 function save(){try{localStorage.setItem("pinyin-quiz-v3",JSON.stringify({ans,cur}))}catch(e){}}
@@ -138,7 +141,27 @@ function grade(i){
 }
 const answered=i=>ans[i].every(a=>a.py.trim()&&(a.tone||norm(a.py).tone));
 function el(h){const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild}
-function render(){ done?renderResult():renderQ() }
+function render(){ done?renderResult():review?renderReview():renderQ() }
+function goReview(){review=true;fromReview=false;window.scrollTo(0,0);render()}
+function renderReview(){
+  const cnt=Q.filter((_,i)=>answered(i)).length, left=Q.length-cnt;
+  app.innerHTML="";
+  app.append(el(`<div><h1>检查答案</h1><p class="sub">交卷前再看一遍。点任意一题可以回去修改，改完会回到这里。</p></div>`));
+  app.append(el(`<div class="card score"><span class="sub">已答 ${cnt} / ${Q.length} 题</span>${left?`<span class="sub" style="color:var(--bad)">还有 ${left} 题没答完，交卷后这些题按 0 分算</span>`:`<span class="sub" style="color:var(--good)">全部答完了</span>`}</div>`));
+  const list=el(`<div class="rev"></div>`);
+  Q.forEach(([w,syl],i)=>{
+    const ok=answered(i);
+    const txt=syl.map((_,k)=>{const a=ans[i][k],n=norm(a.py),t=a.tone||n.tone;return (n.py||"—")+(t?MARK[t]:"?")}).join(" ");
+    const b=el(`<button type="button" class="item rv" aria-label="修改第${i+1}题"><span class="en">${i+1}</span><span class="w">${w}</span><span class="rvtxt">${txt}</span><span class="chip ${ok?"ok":"no"}">${ok?"已答":"未答完"}</span></button>`);
+    b.onclick=()=>{cur=i;review=false;fromReview=true;window.scrollTo(0,0);render()};
+    list.append(b);
+  });
+  app.append(list);
+  const nav=el(`<div class="nav"><button class="btn" id="back">返回答题</button><button class="btn primary" id="go">确认交卷</button></div>`);
+  nav.querySelector("#back").onclick=()=>{review=false;fromReview=false;cur=Q.length-1;save();render()};
+  nav.querySelector("#go").onclick=submit;
+  app.append(nav);
+}
 function renderQ(){
   const [word,syl]=Q[cur], cnt=Q.filter((_,i)=>answered(i)).length;
   app.innerHTML="";
@@ -160,15 +183,16 @@ function renderQ(){
     cols.append(col);
   });
   app.append(card);
-  const nav=el(`<div class="nav"><button class="btn" id="prev" ${cur===0?"disabled":""}>上一题</button><button class="btn primary" id="next">${cur===Q.length-1?"交卷":"下一题"}</button></div>`);
+  const nav=el(`<div class="nav"><button class="btn" id="prev" ${cur===0?"disabled":""}>上一题</button><button class="btn primary" id="next">${cur===Q.length-1?"检查答案":"下一题"}</button></div>`);
   nav.querySelector("#prev").onclick=()=>{cur--;save();render()};
-  nav.querySelector("#next").onclick=()=>{ if(cur===Q.length-1){submit()} else {cur++;save();render()} };
+  nav.querySelector("#next").onclick=()=>{ if(cur===Q.length-1){save();goReview()} else {cur++;save();render()} };
   app.append(nav);
+  if(fromReview){const r=el(`<button class="btn primary" id="toRev">回到检查页</button>`);r.onclick=goReview;app.append(r)}
   const dots=el(`<div class="dots"></div>`);
   Q.forEach((_,i)=>{const b=el(`<button type="button" class="${answered(i)?"done":""} ${i===cur?"cur":""}" aria-label="第${i+1}题">${i+1}</button>`);b.onclick=()=>{cur=i;save();render()};dots.append(b)});
   app.append(dots);
-  app.append(el(`<button class="btn" id="sub">现在交卷（未答的题按 0 分）</button>`));
-  app.querySelector("#sub").onclick=submit;
+  app.append(el(`<button class="btn" id="sub">检查并交卷</button>`));
+  app.querySelector("#sub").onclick=goReview;
   const f=card.querySelector("input");f&&f.focus({preventScroll:true});
 }
 function updateMeta(){
@@ -177,7 +201,7 @@ function updateMeta(){
   app.querySelector(".meta span:last-child").textContent=`已答 ${cnt} 题 · 本题 2 分`;
   app.querySelectorAll(".dots button").forEach((b,i)=>b.classList.toggle("done",answered(i)));
 }
-function submit(){done=true;window.scrollTo(0,0);render()}
+function submit(){done=true;review=false;window.scrollTo(0,0);render()}
 function renderResult(){
   let total=0;const res=Q.map((_,i)=>{const g=grade(i);total+=g.pts;return g});
   const full=res.filter(g=>g.pts>1.999).length;
