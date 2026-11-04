@@ -1,0 +1,205 @@
+<title>拼音听写练习</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 布局：单栏答题卡，顶部进度，中间大字词语，每个字一列「拼音 + 声调」，底部导航；交卷后出成绩与逐题核对 */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --fg:#1d2a26; --muted:#66756f; --line:#d5ddd8;
+  --accent:#1f6f5c; --accent-fg:#ffffff; --good:#1a7f4b; --bad:#b3372c; --good-bg:#e3f3ea; --bad-bg:#f8e4e1;
+  --font-display:"Noto Serif SC","Songti SC","STSong",serif;
+  --font-body:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121816; --surface:#1b2420; --fg:#e6ede9; --muted:#93a39c; --line:#33423b;
+  --accent:#5fc2a5; --accent-fg:#0d1512; --good:#62d193; --bad:#f08a7e; --good-bg:#183326; --bad-bg:#3a1f1c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --surface:#1b2420; --fg:#e6ede9; --muted:#93a39c; --line:#33423b;
+  --accent:#5fc2a5; --accent-fg:#0d1512; --good:#62d193; --bad:#f08a7e; --good-bg:#183326; --bad-bg:#3a1f1c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.5;
+  padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:1.25rem;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:.875rem;margin:0}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+.meta{display:flex;justify-content:space-between;gap:12px;font-family:var(--font-mono);font-size:.8125rem;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px 20px;display:flex;flex-direction:column;gap:20px}
+.word{font-family:var(--font-display);font-size:clamp(2.6rem,12vw,4rem);text-align:center;letter-spacing:.08em;margin:0;line-height:1.2}
+.cols{display:flex;flex-wrap:wrap;justify-content:center;gap:16px}
+.col{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+.col .ch{font-family:var(--font-display);font-size:1.5rem}
+.col input[type=text]{width:7.2em;max-width:100%;font:500 1.125rem var(--font-mono);text-align:center;padding:10px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.tones{display:flex;gap:4px}
+.tones button{width:38px;height:38px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:500 1.125rem var(--font-mono);cursor:pointer;padding:0}
+.tones button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.help{font-size:.8125rem;color:var(--muted);margin:0;text-align:center}
+.nav{display:flex;gap:8px;justify-content:space-between}
+.btn{font:inherit;font-weight:600;padding:11px 18px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:default}
+.dots{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.dots button{aspect-ratio:1;min-height:30px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--muted);font:.75rem var(--font-mono);cursor:pointer;padding:0}
+.dots button.done{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.dots button.cur{outline:2px solid var(--fg);outline-offset:1px}
+.score{text-align:center;display:flex;flex-direction:column;gap:4px}
+.score b{font:600 3.5rem var(--font-display);color:var(--accent);line-height:1.1}
+.rev{display:flex;flex-direction:column;gap:8px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
+.item .w{font:600 1.375rem var(--font-display)}
+.item .pts{margin-left:auto;font:500 .875rem var(--font-mono)}
+.item .det{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;font:.8125rem var(--font-mono)}
+.chip{padding:2px 8px;border-radius:6px}
+.chip.ok{background:var(--good-bg);color:var(--good)}
+.chip.no{background:var(--bad-bg);color:var(--bad)}
+.item .en{color:var(--muted);font-size:.8125rem}
+</style>
+<main id="app"></main>
+<script>
+// [词语, [[拼音, 声调(5=轻声)], ...], 英文释义]  声调按字典本调，不按变调
+const Q=[
+["洗手间",[["xi",3],["shou",3],["jian",1]],"restroom"],
+["火车站",[["huo",3],["che",1],["zhan",4]],"train station"],
+["健身房",[["jian",4],["shen",1],["fang",2]],"gym"],
+["动物园",[["dong",4],["wu",4],["yuan",2]],"zoo"],
+["博物馆",[["bo",2],["wu",4],["guan",3]],"museum"],
+["爆米花",[["bao",4],["mi",3],["hua",1]],"popcorn"],
+["冰淇淋",[["bing",1],["qi",2],["lin",2]],"ice cream"],
+["洗碗机",[["xi",3],["wan",3],["ji",1]],"dishwasher"],
+["西红柿",[["xi",1],["hong",2],["shi",4]],"tomato"],
+["俱乐部",[["ju",4],["le",4],["bu",4]],"club"],
+["巧克力",[["qiao",3],["ke",4],["li",4]],"chocolate"],
+["吸尘器",[["xi",1],["chen",2],["qi",4]],"vacuum cleaner"],
+["小提琴",[["xiao",3],["ti",2],["qin",2]],"violin"],
+["体育馆",[["ti",3],["yu",4],["guan",3]],"gymnasium"],
+["停车场",[["ting",2],["che",1],["chang",3]],"parking lot"],
+["游泳池",[["you",2],["yong",3],["chi",2]],"swimming pool"],
+["乒乓球",[["ping",1],["pang",1],["qiu",2]],"ping-pong"],
+["出租车",[["chu",1],["zu",1],["che",1]],"taxi"],
+["试衣间",[["shi",4],["yi",1],["jian",1]],"fitting room"],
+["连衣裙",[["lian",2],["yi",1],["qun",2]],"dress"],
+["售票处",[["shou",4],["piao",4],["chu",4]],"ticket office"],
+["演唱会",[["yan",3],["chang",4],["hui",4]],"concert"],
+["纪念品",[["ji",4],["nian",4],["pin",3]],"souvenir"],
+["会议室",[["hui",4],["yi",4],["shi",4]],"meeting room"],
+["办公室",[["ban",4],["gong",1],["shi",4]],"office"],
+["身份证",[["shen",1],["fen",4],["zheng",4]],"ID card"],
+["咖啡馆",[["ka",1],["fei",1],["guan",3]],"cafe"],
+["电视剧",[["dian",4],["shi",4],["ju",4]],"TV series"],
+["信用卡",[["xin",4],["yong",4],["ka",3]],"credit card"],
+["便利店",[["bian",4],["li",4],["dian",4]],"convenience store"],
+["运动鞋",[["yun",4],["dong",4],["xie",2]],"sneakers"],
+["市中心",[["shi",4],["zhong",1],["xin",1]],"downtown"],
+["羽毛球",[["yu",3],["mao",2],["qiu",2]],"badminton"],
+["明信片",[["ming",2],["xin",4],["pian",4]],"postcard"],
+["洗发水",[["xi",3],["fa",4],["shui",3]],"shampoo"],
+["眼药水",[["yan",3],["yao",4],["shui",3]],"eye drops"],
+["毕业典礼",[["bi",4],["ye",4],["dian",3],["li",3]],"graduation ceremony"],
+["毕业证",[["bi",4],["ye",4],["zheng",4]],"diploma"],
+["高跟鞋",[["gao",1],["gen",1],["xie",2]],"high heels"],
+["计算机",[["ji",4],["suan",4],["ji",1]],"computer"],
+["奥运会",[["ao",4],["yun",4],["hui",4]],"Olympics"],
+["欢迎光临",[["huan",1],["ying",2],["guang",1],["lin",2]],"welcome (to a shop)"],
+["公交车",[["gong",1],["jiao",1],["che",1]],"bus"],
+["北京大学",[["bei",3],["jing",1],["da",4],["xue",2]],"Peking University"],
+["游乐场",[["you",2],["le",4],["chang",3]],"amusement park"],
+["主题曲",[["zhu",3],["ti",2],["qu",3]],"theme song"],
+["迟到",[["chi",2],["dao",4]],"be late"],
+["堵车",[["du",3],["che",1]],"traffic jam"],
+["预订",[["yu",4],["ding",4]],"reserve"],
+["退款",[["tui",4],["kuan",3]],"refund"],
+];
+const MARK={1:"ˉ",2:"ˊ",3:"ˇ",4:"ˋ",5:"·"}, TXT={1:"一声",2:"二声",3:"三声",4:"四声",5:"轻声"};
+const app=document.getElementById("app");
+let cur=0, done=false;
+const ans=Q.map(q=>q[1].map(()=>({py:"",tone:0})));
+try{const s=JSON.parse(localStorage.getItem("pinyin-quiz-v3")||"null");if(s&&s.ans&&s.ans.length===Q.length){s.ans.forEach((a,i)=>{ans[i]=a});cur=s.cur||0}}catch(e){}
+function save(){try{localStorage.setItem("pinyin-quiz-v3",JSON.stringify({ans,cur}))}catch(e){}}
+// 规范化输入：小写、ü→v、带调字母换成无调并识别声调
+function norm(s){
+  s=(s||"").toLowerCase().replace(/ü/g,"v").replace(/\s+/g,"");
+  let tone=0;const d=s.normalize("NFD");
+  const m={"̄":1,"́":2,"̌":3,"̀":4};
+  for(const c of d){if(m[c])tone=m[c]}
+  const dg=s.match(/[1-5]/);if(dg)tone=+dg[0];
+  s=d.replace(/[̀-ͯ]/g,"").replace(/[0-9]/g,"");
+  return {py:s,tone};
+}
+function grade(i){
+  const w=Q[i][1], per=2/w.length;
+  const rows=w.map((c,k)=>{
+    const a=ans[i][k], n=norm(a.py), tone=a.tone||n.tone;
+    const pyOk=n.py===c[0], toneOk=tone===c[1];
+    return {pyOk,toneOk,pts:pyOk&&toneOk?per:0,got:n.py,gotTone:tone};
+  });
+  return {rows,pts:rows.reduce((s,r)=>s+r.pts,0)};
+}
+const answered=i=>ans[i].every(a=>a.py.trim()&&(a.tone||norm(a.py).tone));
+function el(h){const t=document.createElement("template");t.innerHTML=h.trim();return t.content.firstChild}
+function render(){ done?renderResult():renderQ() }
+function renderQ(){
+  const [word,syl]=Q[cur], cnt=Q.filter((_,i)=>answered(i)).length;
+  app.innerHTML="";
+  app.append(el(`<div><h1>拼音听写练习</h1><p class="sub">多邻国中文 · 第 1–3 部分（到第 3 部分第 7 单元）课程词表 · 日常对话词语</p></div>`));
+  app.append(el(`<div class="bar" aria-hidden="true"><i style="width:${cnt/Q.length*100}%"></i></div>`));
+  app.append(el(`<div class="meta"><span>第 ${cur+1} / ${Q.length} 题</span><span>已答 ${cnt} 题 · 本题 2 分</span></div>`));
+  const card=el(`<div class="card"><p class="word">${word}</p><div class="cols"></div><p class="help">写出每个字的拼音（不带声调符号），再选声调。ü 可写成 v。</p></div>`);
+  const cols=card.querySelector(".cols");
+  syl.forEach((_,k)=>{
+    const a=ans[cur][k];
+    const col=el(`<div class="col"><span class="ch">${word[k]}</span><input type="text" id="py${k}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="第${k+1}个字的拼音" value="${a.py.replace(/"/g,"")}"><div class="tones" role="group" aria-label="声调"></div></div>`);
+    const tb=col.querySelector(".tones");
+    [1,2,3,4,5].forEach(t=>{
+      const b=el(`<button type="button" aria-pressed="${a.tone===t}" title="${TXT[t]}">${MARK[t]}</button>`);
+      b.onclick=()=>{a.tone=a.tone===t?0:t;save();tb.querySelectorAll("button").forEach((x,j)=>x.setAttribute("aria-pressed",String(a.tone===j+1)));updateMeta()};
+      tb.append(b);
+    });
+    col.querySelector("input").oninput=e=>{a.py=e.target.value;save();updateMeta()};
+    cols.append(col);
+  });
+  app.append(card);
+  const nav=el(`<div class="nav"><button class="btn" id="prev" ${cur===0?"disabled":""}>上一题</button><button class="btn primary" id="next">${cur===Q.length-1?"交卷":"下一题"}</button></div>`);
+  nav.querySelector("#prev").onclick=()=>{cur--;save();render()};
+  nav.querySelector("#next").onclick=()=>{ if(cur===Q.length-1){submit()} else {cur++;save();render()} };
+  app.append(nav);
+  const dots=el(`<div class="dots"></div>`);
+  Q.forEach((_,i)=>{const b=el(`<button type="button" class="${answered(i)?"done":""} ${i===cur?"cur":""}" aria-label="第${i+1}题">${i+1}</button>`);b.onclick=()=>{cur=i;save();render()};dots.append(b)});
+  app.append(dots);
+  app.append(el(`<button class="btn" id="sub">现在交卷（未答的题按 0 分）</button>`));
+  app.querySelector("#sub").onclick=submit;
+  const f=card.querySelector("input");f&&f.focus({preventScroll:true});
+}
+function updateMeta(){
+  const cnt=Q.filter((_,i)=>answered(i)).length;
+  app.querySelector(".bar>i").style.width=cnt/Q.length*100+"%";
+  app.querySelector(".meta span:last-child").textContent=`已答 ${cnt} 题 · 本题 2 分`;
+  app.querySelectorAll(".dots button").forEach((b,i)=>b.classList.toggle("done",answered(i)));
+}
+function submit(){done=true;window.scrollTo(0,0);render()}
+function renderResult(){
+  let total=0;const res=Q.map((_,i)=>{const g=grade(i);total+=g.pts;return g});
+  const full=res.filter(g=>g.pts>1.999).length;
+  app.innerHTML="";
+  const money=(total/(Q.length*2)*50).toFixed(2);
+  app.append(el(`<div class="card score"><span class="sub">总分（满分 ${Q.length*2}）</span><b>${(Math.round(total*100)/100).toString()}</b><span class="sub" id="payout">奖金：${money} 加元（满分 50 加元 × 得分 ÷ ${Q.length*2}）</span><span class="sub">全对 ${full} 题 · 共 ${Q.length} 题 · 每题 2 分，按字平分（3 字词每字约 0.67 分，4 字词每字 0.5 分）</span></div>`));
+  const rev=el(`<div class="rev"></div>`);
+  Q.forEach(([w,syl,en],i)=>{
+    const g=res[i];
+    const det=syl.map((c,k)=>{
+      const r=g.rows[k], ok=r.pyOk&&r.toneOk;
+      const right=c[0]+MARK[c[1]];
+      return `<span class="chip ${ok?"ok":"no"}">${w[k]} ${ok?right:`你写 ${r.got||"—"}${r.gotTone?MARK[r.gotTone]:"?"} → 正确 ${right}`}</span>`;
+    }).join("");
+    rev.append(el(`<div class="item"><span class="w">${w}</span><span class="en">${en}</span><span class="pts">${(Math.round(g.pts*100)/100)} / 2</span><div class="det">${det}</div></div>`));
+  });
+  app.append(rev);
+  const again=el(`<button class="btn primary">重新答题</button>`);
+  again.onclick=()=>{ans.forEach(a=>a.forEach(x=>{x.py="";x.tone=0}));cur=0;done=false;save();window.scrollTo(0,0);render()};
+  const back=el(`<button class="btn">返回修改答案</button>`);
+  back.onclick=()=>{done=false;cur=0;render()};
+  const nav=el(`<div class="nav"></div>`);nav.append(back,again);app.append(nav);
+}
+render();
+</script>
